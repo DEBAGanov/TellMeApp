@@ -1,4 +1,4 @@
-package com.example.tellmeapp.ui.theme
+package com.TellMeUp.tellmeapp.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
