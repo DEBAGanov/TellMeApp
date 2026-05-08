@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-05-08] - Этап 2: Голосовое распознавание + Этап 3: Вставка текста
+### Добавлено
+- `AquaVoiceApi` — HTTP клиент (OkHttp multipart) с batch и SSE streaming, язык=ru, модель=avalon-1
+- `TranscriptionResponse`, `ApiError` — DTO для ответов API
+- `NetworkModule` — Hilt модуль (OkHttpClient с logging, Json)
+- `RepositoryModule` — Hilt привязка SpeechRepository → SpeechRepositoryImpl
+- `SpeechRepository` / `SpeechRepositoryImpl` — распознавание с обработкой ошибок и кодами
+- `RecognizeSpeechUseCase` — domain use case
+- `VolumeButtonDetector` — детектор двойного нажатия (300мс окно)
+- `VoiceAccessibilityService` — перехват Volume Up + вставка текста (ACTION_SET_TEXT / clipboard fallback)
+- XML конфигурация AccessibilityService (`accessibility_service_config.xml`)
+- Полный цикл в `MainViewModel`: VoiceTrigger → Recording → API → InsertText
+- Виброотклик при старте/стопе записи
+- Toast с кодом ошибки при неудачном распознавании
+### Изменено
+- `MainViewModel` — инжектирован `RecognizeSpeechUseCase`, добавлены voiceTriggerReceiver, управление AudioRecorder
+- `AndroidManifest` — добавлен VoiceAccessibilityService с BIND_ACCESSIBILITY_SERVICE
+- `strings.xml` — добавлено описание AccessibilityService
+
+---
+
 ## [2026-05-08] - Задача 1.4: AudioRecorder
 ### Добавлено
 - `AudioRecorder` — запись через `AudioRecord` (16kHz, 16-bit, mono), источник `VOICE_RECOGNITION`

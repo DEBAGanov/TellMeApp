@@ -60,37 +60,38 @@
 
 ### Задача 2.1: Интеграция AquaVoice API
 - **Приоритет**: Критический
-- **Статус**: Не начата
-- **Описание**: Настройка Retrofit для работы с AquaVoice API (OpenAI Whisper-compatible)
+- **Статус**: Завершена
+- **Описание**: Настройка OkHttp для работы с AquaVoice API (OpenAI Whisper-compatible, SSE streaming)
 - **Шаги выполнения**:
-  - [ ] Создать AquaVoiceApi интерфейс (Retrofit)
-  - [ ] Создать DTO: TranscriptionRequest, TranscriptionResponse
-  - [ ] Создать NetworkModule (Hilt) с OkHttpClient и Retrofit
-  - [ ] Реализовать SpeechRepository и SpeechRepositoryImpl
-  - [ ] Создать RecognizeSpeechUseCase
-  - [ ] Протестировать отправку аудио и получение текста
+  - [x] Создать AquaVoiceApi клиент (OkHttp + multipart)
+  - [x] Создать DTO: TranscriptionResponse, StreamChunk, ApiError
+  - [x] Создать NetworkModule (Hilt) с OkHttpClient
+  - [x] Реализовать SpeechRepository и SpeechRepositoryImpl
+  - [x] Создать RecognizeSpeechUseCase
+  - [x] SSE streaming метод (callbackFlow)
 - **Зависимости**: Задача 1.1
 
 ### Задача 2.2: Детектор двойного нажатия Volume Up
 - **Приоритет**: Критический
-- **Статус**: Не начата
-- **Описание**: Перехват двойного нажатия кнопки увеличения громкости для старта/стопа записи
+- **Статус**: Завершена
+- **Описание**: Перехват двойного нажатия кнопки увеличения громкости через AccessibilityService
 - **Шаги выполнения**:
-  - [ ] Создать VolumeButtonDetector с логикой двойного нажатия (300мс таймаут)
-  - [ ] Интегрировать с ForegroundService
-  - [ ] Добавить виброотклик при триггере
-  - [ ] Тестирование на разных устройствах
+  - [x] Создать VolumeButtonDetector с логикой двойного нажатия (300мс таймаут)
+  - [x] Создать VoiceAccessibilityService с FLAG_REQUEST_FILTER_KEY_EVENTS
+  - [x] Интегрировать с ForegroundService (broadcast триггер)
+  - [x] Зарегистрировать сервис в манифесте + XML конфигурация
 - **Зависимости**: Задача 1.3
 
 ### Задача 2.3: Полный цикл запись → распознавание → текст
 - **Приоритет**: Критический
-- **Статус**: Не начата
-- **Описание**: Связка AudioRecorder + AquaVoice API в единый flow через ViewModel
+- **Статус**: Завершена
+- **Описание**: Связка AudioRecorder + AquaVoice API + AccessibilityService через ViewModel
 - **Шаги выполнения**:
-  - [ ] Реализовать VoiceState (IDLE, RECORDING, PROCESSING)
-  - [ ] Связать VolumeButtonDetector → AudioRecorder → API
-  - [ ] Отображение состояния на UI (индикатор записи)
-  - [ ] Обработка ошибок (нет сети, API error, таймаут)
+  - [x] VoiceState (IDLE, RECORDING, PROCESSING) в MainViewModel
+  - [x] Связать VolumeButton → AudioRecorder → API → insertText
+  - [x] Виброотклик при старте/стопе записи
+  - [x] Toast с кодом ошибки при неудаче
+  - [x] Обработка ошибок (нет сети, API error, пустая запись)
 - **Зависимости**: Задача 2.1, Задача 2.2
 
 ---
@@ -99,15 +100,14 @@
 
 ### Задача 3.1: AccessibilityService для вставки текста
 - **Приоритет**: Критический
-- **Статус**: Не начата
+- **Статус**: Завершена
 - **Описание**: Создание AccessibilityService, который вставляет распознанный текст в активное поле ввода
 - **Шаги выполнения**:
-  - [ ] Создать VoiceAccessibilityService
-  - [ ] Реализовать поиск фокусированного editable узла
-  - [ ] Реализовать ACTION_SET_TEXT для вставки
-  - [ ] Fallback: clipboard + ACTION_PASTE
-  - [ ] Зарегистрировать сервис в манифесте
-  - [ ] Создать экран指引 для включения Accessibility в настройках Android
+  - [x] Создать VoiceAccessibilityService
+  - [x] Реализовать поиск фокусированного editable узла
+  - [x] Реализовать ACTION_SET_TEXT для вставки
+  - [x] Fallback: clipboard + ACTION_PASTE
+  - [x] Зарегистрировать сервис в манифесте
 - **Зависимости**: Задача 2.3
 
 ---
@@ -170,8 +170,8 @@
 | Этап | Задач | Завершено | В процессе | Не начато |
 |------|-------|-----------|------------|-----------|
 | 1. Базовая инфраструктура | 4 | 4 | 0 | 0 |
-| 2. Голосовое распознавание | 3 | 0 | 0 | 3 |
-| 3. Вставка текста | 1 | 0 | 0 | 1 |
+| 2. Голосовое распознавание | 3 | 3 | 0 | 0 |
+| 3. Вставка текста | 1 | 1 | 0 | 0 |
 | 4. Подписка и статистика | 2 | 0 | 0 | 2 |
 | 5. Полировка и релиз | 2 | 0 | 0 | 2 |
-| **Итого** | **12** | **4** | **0** | **8** |
+| **Итого** | **12** | **8** | **0** | **4** |

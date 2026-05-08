@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">TellMeApp</string>
+    <string name="accessibility_service_description">TellMeApp needs accessibility permission to detect volume button presses and insert recognized text into input fields.</string>
 </resources>
