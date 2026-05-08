@@ -1,7 +1,7 @@
 /**
  * @file: MainViewModel.kt
- * @description: ViewModel for main screen managing service, recording, recognition and text insertion
- * @dependencies: Hilt, VoiceState, Subscription, VoiceForegroundService, AudioRecorder, RecognizeSpeechUseCase
+ * @description: ViewModel for main screen — hold Volume Up to record, release to recognize
+ * @dependencies: Hilt, VoiceState, VoiceForegroundService, AudioRecorder, RecognizeSpeechUseCase
  * @created: 2026-05-08
  */
 
@@ -19,6 +19,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.TellMeUp.tellmeapp.domain.model.Subscription
 import com.TellMeUp.tellmeapp.domain.model.VoiceState
+import com.TellMeUp.tellmeapp.domain.repository.SpeechRepository
 import com.TellMeUp.tellmeapp.domain.usecase.RecognizeSpeechUseCase
 import com.TellMeUp.tellmeapp.service.AudioRecorder
 import com.TellMeUp.tellmeapp.service.StopServiceReceiver
@@ -38,13 +39,15 @@ data class MainUiState(
     val isServiceActive: Boolean = false,
     val voiceState: VoiceState = VoiceState.IDLE,
     val subscription: Subscription? = null,
-    val lastRecognizedText: String? = null
+    val lastRecognizedText: String? = null,
+    val hasPermissions: Boolean = false
 )
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val recognizeSpeechUseCase: RecognizeSpeechUseCase
+    private val recognizeSpeechUseCase: RecognizeSpeechUseCase,
+    private val speechRepository: SpeechRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -59,10 +62,11 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private val voiceTriggerReceiver = object : BroadcastReceiver() {
+    private val recordingReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
-            if (intent.action == VoiceAccessibilityService.ACTION_VOICE_TRIGGER) {
-                onVoiceTrigger()
+            when (intent.action) {
+                VoiceAccessibilityService.ACTION_RECORDING_START -> startRecording()
+                VoiceAccessibilityService.ACTION_RECORDING_STOP -> stopAndRecognize()
             }
         }
     }
@@ -73,11 +77,16 @@ class MainViewModel @Inject constructor(
             IntentFilter(StopServiceReceiver.ACTION_SERVICE_STOPPED),
             Context.RECEIVER_NOT_EXPORTED
         )
-        context.registerReceiver(
-            voiceTriggerReceiver,
-            IntentFilter(VoiceAccessibilityService.ACTION_VOICE_TRIGGER),
-            Context.RECEIVER_NOT_EXPORTED
-        )
+
+        val recordingFilter = IntentFilter().apply {
+            addAction(VoiceAccessibilityService.ACTION_RECORDING_START)
+            addAction(VoiceAccessibilityService.ACTION_RECORDING_STOP)
+        }
+        context.registerReceiver(recordingReceiver, recordingFilter, Context.RECEIVER_NOT_EXPORTED)
+    }
+
+    fun onPermissionsGranted() {
+        _uiState.value = _uiState.value.copy(hasPermissions = true)
     }
 
     fun toggleService() {
@@ -90,15 +99,9 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun onVoiceTrigger() {
-        when (_uiState.value.voiceState) {
-            VoiceState.IDLE -> startRecording()
-            VoiceState.RECORDING -> stopAndRecognize()
-            VoiceState.PROCESSING -> {}
-        }
-    }
-
     private fun startRecording() {
+        if (_uiState.value.voiceState != VoiceState.IDLE) return
+
         try {
             val audioFile = File(context.cacheDir, "voice_${System.currentTimeMillis()}.wav")
             currentAudioFile = audioFile
@@ -116,8 +119,9 @@ class MainViewModel @Inject constructor(
     }
 
     private fun stopAndRecognize() {
-        vibrate(shortVibration = false)
+        if (_uiState.value.voiceState != VoiceState.RECORDING) return
 
+        vibrate(shortVibration = false)
         _uiState.value = _uiState.value.copy(voiceState = VoiceState.PROCESSING)
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -128,6 +132,19 @@ class MainViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(voiceState = VoiceState.IDLE)
                     showToast("Ошибка: пустая запись")
                 }
+                return@launch
+            }
+
+            if (!speechRepository.hasApiKey()) {
+                val durationSec = (audioFile.length() - 44) / (16000 * 2)
+                launch(Dispatchers.Main) {
+                    _uiState.value = _uiState.value.copy(
+                        voiceState = VoiceState.IDLE,
+                        lastRecognizedText = "[Тест] Записано ${durationSec}с, ${audioFile.length()} байт"
+                    )
+                    showToast("Запись $durationSec сек. Добавьте API-ключ в настройках.")
+                }
+                audioFile.delete()
                 return@launch
             }
 
@@ -184,11 +201,7 @@ class MainViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         audioRecorder.release()
-        try {
-            context.unregisterReceiver(stopReceiver)
-        } catch (_: IllegalArgumentException) {}
-        try {
-            context.unregisterReceiver(voiceTriggerReceiver)
-        } catch (_: IllegalArgumentException) {}
+        try { context.unregisterReceiver(stopReceiver) } catch (_: IllegalArgumentException) {}
+        try { context.unregisterReceiver(recordingReceiver) } catch (_: IllegalArgumentException) {}
     }
 }

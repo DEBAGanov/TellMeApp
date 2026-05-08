@@ -78,7 +78,7 @@ fun StatusIndicator(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = if (isServiceActive) "Двойное нажатие Volume Up для записи" else "Нажмите для запуска",
+            text = if (isServiceActive) "Зажмите Volume Up для записи" else "Нажмите для запуска",
             color = TextSecondary,
             fontSize = 13.sp
         )

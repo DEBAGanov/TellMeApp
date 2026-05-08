@@ -1,7 +1,7 @@
 /**
  * @file: VoiceAccessibilityService.kt
- * @description: AccessibilityService for volume button interception and text insertion
- * @dependencies: VolumeButtonDetector, AudioRecorder
+ * @description: AccessibilityService for volume button hold-to-record and text insertion
+ * @dependencies: None
  * @created: 2026-05-08
  */
 
@@ -11,14 +11,17 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import com.TellMeUp.tellmeapp.util.VolumeButtonDetector
 
 class VoiceAccessibilityService : AccessibilityService() {
 
     companion object {
-        const val ACTION_VOICE_TRIGGER = "com.TellMeUp.tellmeapp.VOICE_TRIGGER"
+        const val ACTION_RECORDING_START = "com.TellMeUp.tellmeapp.RECORDING_START"
+        const val ACTION_RECORDING_STOP = "com.TellMeUp.tellmeapp.RECORDING_STOP"
         const val ACTION_INSERT_TEXT = "com.TellMeUp.tellmeapp.INSERT_TEXT"
         const val EXTRA_TEXT = "extra_text"
 
@@ -27,9 +30,18 @@ class VoiceAccessibilityService : AccessibilityService() {
         fun getInstance(): VoiceAccessibilityService? = instance
     }
 
-    private val volumeDetector = VolumeButtonDetector(
-        onDoublePress = { onVoiceTrigger() }
-    )
+    private val handler = Handler(Looper.getMainLooper())
+    private var isHolding = false
+    private var isRecording = false
+
+    private val longPressThreshold = 400L
+
+    private val longPressRunnable = Runnable {
+        if (isHolding) {
+            isRecording = true
+            sendBroadcast(Intent(ACTION_RECORDING_START))
+        }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -40,20 +52,37 @@ class VoiceAccessibilityService : AccessibilityService() {
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = flags or
                     AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS or
-                    AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+                    AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
+                    AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
 
-    override fun onKeyEvent(event: android.view.KeyEvent?): Boolean {
+    override fun onKeyEvent(event: KeyEvent?): Boolean {
         if (event == null) return super.onKeyEvent(event)
 
-        if (event.keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP &&
-            event.action == android.view.KeyEvent.ACTION_DOWN
-        ) {
-            volumeDetector.onVolumeUpPressed()
-            return true
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> {
+                    if (!isHolding) {
+                        isHolding = true
+                        handler.postDelayed(longPressRunnable, longPressThreshold)
+                    }
+                    return true
+                }
+                KeyEvent.ACTION_UP -> {
+                    handler.removeCallbacks(longPressRunnable)
+
+                    if (isRecording) {
+                        isRecording = false
+                        sendBroadcast(Intent(ACTION_RECORDING_STOP))
+                    }
+
+                    isHolding = false
+                    return true
+                }
+            }
         }
 
         return super.onKeyEvent(event)
@@ -63,12 +92,8 @@ class VoiceAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        handler.removeCallbacks(longPressRunnable)
         instance = null
-    }
-
-    private fun onVoiceTrigger() {
-        val intent = Intent(ACTION_VOICE_TRIGGER)
-        sendBroadcast(intent)
     }
 
     fun insertText(text: String): Boolean {
