@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-05-08] - Этап 5: Полировка и релиз
+### Добавлено
+- `SettingsScreen` — экран настроек: API-ключ AquaVoice, виброотклик, визуальное уведомление, тёмная тема
+- `SettingsViewModel` — управление настройками через PreferencesStore + SpeechRepository
+- `AppNavigation` — Bottom Navigation Bar с 3 табами (Голос / Подписка / Настройки)
+- Compose Navigation с NavHost, saveState/restoreState
+### Изменено
+- `MainActivity` — использует `AppNavigation()` вместо `MainScreen()` напрямую
+### Исправлено
+- Замена `material-icons-extended` (OOM) на базовые Material иконки (`Home`, `Star`, `Settings`)
+
+---
+
 ## [2026-05-08] - Этап 4: Подписка и статистика
 ### Добавлено
 - `PreferencesStore` — DataStore хранилище (activation_link, subscription_status, expiry_date, tariff_type, api_key)
