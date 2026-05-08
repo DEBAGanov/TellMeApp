@@ -19,6 +19,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.TellMeApp">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -26,10 +27,19 @@
             android:theme="@style/Theme.TellMeApp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".service.VoiceForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
+
+        <receiver
+            android:name=".service.StopServiceReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

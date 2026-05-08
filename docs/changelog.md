@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-05-08] - Задача 1.3: ForegroundService
+### Добавлено
+- `VoiceForegroundService` — фоновый сервис с `START_STICKY`, notification channel (low priority)
+- `StopServiceReceiver` — BroadcastReceiver для кнопки "Выключить" в уведомлении
+- Сервис и receiver зарегистрированы в AndroidManifest (`foregroundServiceType="specialUse"`)
+### Изменено
+- `MainViewModel` — инжектирован `ApplicationContext`, подключён старт/стоп сервиса через `toggleService()`
+- `MainViewModel` — регистрация `BroadcastReceiver` для синхронизации состояния при остановке из уведомления
+
+---
+
 ## [2026-05-08] - Задача 1.2: Главный экран UI
 ### Добавлено
 - `PowerButton` — круглая кнопка с glow-эффектом, три состояния (idle/active/recording)
