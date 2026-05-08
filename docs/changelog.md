@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-05-08] - Этап 4: Подписка и статистика
+### Добавлено
+- `PreferencesStore` — DataStore хранилище (activation_link, subscription_status, expiry_date, tariff_type, api_key)
+- `SubscriptionRepository` / `SubscriptionRepositoryImpl` — управление подпиской с mock-активацией (30 дней Pro)
+- `ActivateSubscriptionUseCase`, `GetSubscriptionStatusUseCase` — domain use cases
+- `SubscriptionViewModel` — управление состоянием экрана подписки
+- `SubscriptionScreen` — экран с полем ввода ссылки, кнопкой активации, карточкой статуса и детальной информацией (тариф, срок, дни)
+- `RepositoryModule` обновлён — добавлена привязка SubscriptionRepository
+
+---
+
 ## [2026-05-08] - Этап 2: Голосовое распознавание + Этап 3: Вставка текста
 ### Добавлено
 - `AquaVoiceApi` — HTTP клиент (OkHttp multipart) с batch и SSE streaming, язык=ru, модель=avalon-1
