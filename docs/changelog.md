@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-05-08] - Задача 1.4: AudioRecorder
+### Добавлено
+- `AudioRecorder` — запись через `AudioRecord` (16kHz, 16-bit, mono), источник `VOICE_RECOGNITION`
+- Автоматическая запись WAV-заголовка (44 байта) после остановки
+- Обработка ошибок инициализации микрофона
+- Поток записи в отдельном thread (`AudioRecorder`)
+
+---
+
 ## [2026-05-08] - Задача 1.3: ForegroundService
 ### Добавлено
 - `VoiceForegroundService` — фоновый сервис с `START_STICKY`, notification channel (low priority)
