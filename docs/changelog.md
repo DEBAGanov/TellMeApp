@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-05-08] - Задача 1.2: Главный экран UI
+### Добавлено
+- `PowerButton` — круглая кнопка с glow-эффектом, три состояния (idle/active/recording)
+- `StatusIndicator` — текстовый индикатор с анимацией точек и прогрессом обработки
+- `SubscriptionCard` — компактная карточка подписки (статус, дата окончания)
+- `MainScreen` — главный экран с тёмным фоном, PowerButton по центру, подписка внизу
+- `MainViewModel` — ViewModel с `MainUiState` и toggle логикой
+### Изменено
+- `MainActivity` — подключён `MainScreen`, убран шаблонный код, `darkTheme = true` по умолчанию
+
+---
+
 ## [2026-05-08] - Этап 1: Базовая инфраструктура
 ### Добавлено
 - Package переименован в `com.TellMeUp.tellmeapp`
