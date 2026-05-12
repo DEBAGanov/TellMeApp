@@ -29,7 +29,8 @@ class SpeechRepositoryImpl @Inject constructor(
                     Transcription(
                         text = "",
                         isSuccess = false,
-                        errorCode = "EMPTY_RESULT"
+                        errorCode = "EMPTY_RESULT",
+                        errorMessage = "API returned empty text"
                     )
                 } else {
                     Transcription(
@@ -39,14 +40,23 @@ class SpeechRepositoryImpl @Inject constructor(
                 }
             },
             onFailure = { error ->
-                val errorCode = when (error) {
-                    is AquaVoiceApi.ApiException -> error.errorCode
-                    else -> "NETWORK_ERROR"
+                val errorCode: String
+                val errorMsg: String
+                when (error) {
+                    is AquaVoiceApi.ApiException -> {
+                        errorCode = error.errorCode
+                        errorMsg = "HTTP ${error.code}: ${error.message}"
+                    }
+                    else -> {
+                        errorCode = "NETWORK_ERROR"
+                        errorMsg = error.message ?: "Unknown network error"
+                    }
                 }
                 Transcription(
                     text = "",
                     isSuccess = false,
-                    errorCode = errorCode
+                    errorCode = errorCode,
+                    errorMessage = errorMsg
                 )
             }
         )

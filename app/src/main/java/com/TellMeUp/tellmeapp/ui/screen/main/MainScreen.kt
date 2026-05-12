@@ -1,31 +1,36 @@
 /**
  * @file: MainScreen.kt
- * @description: Main screen with permissions, accessibility check, power button and status
- * @dependencies: PowerButton, StatusIndicator, SubscriptionCard, MainViewModel
- * @created: 2026-05-08
+ * @description: Main screen with service control, assistant setup and manual recording
+ * @dependencies: MainViewModel
+ * @created: 2026-05-09
  */
 
 package com.TellMeUp.tellmeapp.ui.screen.main
 
 import android.Manifest
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import android.content.pm.PackageManager
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,11 +48,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.TellMeUp.tellmeapp.service.VoiceAccessibilityService
-import com.TellMeUp.tellmeapp.ui.component.PowerButton
-import com.TellMeUp.tellmeapp.ui.component.StatusIndicator
-import com.TellMeUp.tellmeapp.ui.component.SubscriptionCard
+import com.TellMeUp.tellmeapp.domain.model.AiProvider
+import com.TellMeUp.tellmeapp.domain.model.VoiceState
 import com.TellMeUp.tellmeapp.ui.theme.AccentBlue
 import com.TellMeUp.tellmeapp.ui.theme.BackgroundDark
 import com.TellMeUp.tellmeapp.ui.theme.CardDark
@@ -55,6 +59,7 @@ import com.TellMeUp.tellmeapp.ui.theme.RecordingRed
 import com.TellMeUp.tellmeapp.ui.theme.SurfaceDark
 import com.TellMeUp.tellmeapp.ui.theme.TextPrimary
 import com.TellMeUp.tellmeapp.ui.theme.TextSecondary
+import com.TellMeUp.tellmeapp.ui.theme.TextTertiary
 
 @Composable
 fun MainScreen(
@@ -63,156 +68,305 @@ fun MainScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    var hasAudioPermission by remember { mutableStateOf(false) }
-    var hasNotificationPermission by remember { mutableStateOf(false) }
-    var isAccessibilityEnabled by remember { mutableStateOf(false) }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        hasAudioPermission = permissions[Manifest.permission.RECORD_AUDIO] ?: false
-        hasNotificationPermission = permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
-        if (hasAudioPermission) {
-            viewModel.onPermissionsGranted()
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        permissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.POST_NOTIFICATIONS
-            )
+    var hasMicPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         )
     }
 
-    LaunchedEffect(Unit) {
-        isAccessibilityEnabled = checkAccessibilityEnabled(context)
-    }
-
-    MainScreenContent(
-        uiState = uiState,
-        hasAudioPermission = hasAudioPermission,
-        isAccessibilityEnabled = isAccessibilityEnabled,
-        onPowerClick = {
-            if (hasAudioPermission) {
-                viewModel.toggleService()
-            } else {
-                permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
-            }
-        },
-        onEnableAccessibility = {
-            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        },
-        onGrantPermission = {
-            permissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.RECORD_AUDIO,
-                    Manifest.permission.POST_NOTIFICATIONS
-                )
-            )
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        hasMicPermission = perms[Manifest.permission.RECORD_AUDIO] == true
+        if (hasMicPermission) {
+            viewModel.onPermissionsGranted()
+            Toast.makeText(context, "Разрешение получено", Toast.LENGTH_SHORT).show()
         }
-    )
-}
-
-private fun checkAccessibilityEnabled(context: Context): Boolean {
-    val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
-    val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-    return enabledServices.any {
-        it.resolveInfo.serviceInfo.packageName == context.packageName
     }
-}
 
-@Composable
-private fun MainScreenContent(
-    uiState: MainUiState,
-    hasAudioPermission: Boolean,
-    isAccessibilityEnabled: Boolean,
-    onPowerClick: () -> Unit,
-    onEnableAccessibility: () -> Unit,
-    onGrantPermission: () -> Unit
-) {
+    LaunchedEffect(Unit) {
+        if (!hasMicPermission) {
+            permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS))
+        }
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(BackgroundDark, SurfaceDark, BackgroundDark)
-                )
-            )
+            .background(Brush.verticalGradient(colors = listOf(BackgroundDark, SurfaceDark, BackgroundDark)))
             .padding(24.dp)
     ) {
         Text(
             text = "TellMeApp",
             color = TextPrimary,
-            fontSize = 20.sp,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 16.dp)
+            modifier = Modifier.padding(top = 24.dp)
         )
 
-        if (!hasAudioPermission) {
-            PermissionCard(
-                text = "Требуется разрешение на микрофон",
+        // Permission status
+        if (!hasMicPermission) {
+            StatusCard(
+                text = "Нет разрешения на микрофон",
                 buttonText = "Разрешить",
-                onClick = onGrantPermission
+                onClick = { permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO)) },
+                isWarning = true
             )
-        }
-
-        if (!isAccessibilityEnabled && uiState.isServiceActive) {
-            PermissionCard(
-                text = "Включите Accessibility для работы кнопки громкости",
-                buttonText = "Открыть настройки",
-                onClick = onEnableAccessibility
-            )
-        }
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            PowerButton(
-                voiceState = uiState.voiceState,
-                isServiceActive = uiState.isServiceActive,
-                onClick = onPowerClick
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            StatusIndicator(
-                voiceState = uiState.voiceState,
-                isServiceActive = uiState.isServiceActive
-            )
-
-            if (uiState.lastRecognizedText != null) {
-                Spacer(modifier = Modifier.height(16.dp))
+        } else {
+            // Service toggle
+            Button(
+                onClick = {
+                    Toast.makeText(context, "Переключение сервиса...", Toast.LENGTH_SHORT).show()
+                    viewModel.toggleService()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (uiState.isServiceActive) RecordingRed else AccentBlue
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
                 Text(
-                    text = "\"${uiState.lastRecognizedText}\"",
-                    color = TextSecondary,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    text = if (uiState.isServiceActive) "СТОП СЕРВИС" else "СТАРТ СЕРВИС",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
                 )
             }
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            SubscriptionCard(
-                subscription = uiState.subscription,
-                modifier = Modifier.fillMaxWidth()
+        // Service status
+        Text(
+            text = when {
+                !hasMicPermission -> "Нет разрешения"
+                uiState.isServiceActive -> "Сервис активен"
+                else -> "Сервис остановлен"
+            },
+            color = if (uiState.isServiceActive) AccentBlue else TextTertiary,
+            fontSize = 14.sp
+        )
+
+        // Setup instructions when service is active
+        if (uiState.isServiceActive && hasMicPermission) {
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Step 1: Assistant setup
+            StepCard(
+                step = "1",
+                title = "Кнопка питания",
+                description = "Зажмите кнопку питания\n→ TellMeApp запишет голос\n→ Тапните чтобы остановить",
+                buttonText = "Настройки ассистента",
+                onClick = {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_VOICE_INPUT_SETTINGS))
+                    } catch (_: Exception) {
+                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
+                }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Step 2: API key reminder
+            StepCard(
+                step = "2",
+                title = "API-ключ",
+                description = "Укажите ключ во вкладке\n«Настройки» для распознавания",
+                buttonText = null,
+                onClick = null
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // AI mode toggle
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardDark)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "AI ассистент",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Обработка текста через ${uiState.aiProvider.displayName}",
+                        color = TextTertiary,
+                        fontSize = 11.sp
+                    )
+                }
+                Switch(
+                    checked = uiState.isAiModeEnabled,
+                    onCheckedChange = { viewModel.toggleAiMode() },
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = AccentBlue,
+                        checkedThumbColor = TextPrimary,
+                        uncheckedTrackColor = TextTertiary.copy(alpha = 0.3f),
+                        uncheckedThumbColor = TextSecondary
+                    )
+                )
+            }
+
+            // Provider selector (visible when AI is enabled)
+            if (uiState.isAiModeEnabled) {
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CardDark)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    AiProvider.entries.forEach { provider ->
+                        val isSelected = uiState.aiProvider == provider
+                        Button(
+                            onClick = { viewModel.selectProvider(provider) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSelected) AccentBlue else CardDark
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                        ) {
+                            Text(
+                                text = provider.displayName,
+                                color = if (isSelected) TextPrimary else TextSecondary,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Manual record button
+            Button(
+                onClick = {
+                    when (uiState.voiceState) {
+                        VoiceState.IDLE -> {
+                            Toast.makeText(context, "Начинаю запись...", Toast.LENGTH_SHORT).show()
+                            viewModel.startRecordingManually()
+                        }
+                        VoiceState.RECORDING -> {
+                            Toast.makeText(context, "Останавливаю запись...", Toast.LENGTH_SHORT).show()
+                            viewModel.stopRecordingManually()
+                        }
+                        VoiceState.PROCESSING -> {}
+                        VoiceState.AI_PROCESSING -> {}
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = when (uiState.voiceState) {
+                        VoiceState.RECORDING -> RecordingRed
+                        VoiceState.PROCESSING -> TextTertiary
+                        VoiceState.AI_PROCESSING -> TextTertiary
+                        else -> AccentBlue
+                    }
+                ),
+                shape = CircleShape,
+                modifier = Modifier.size(140.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = when (uiState.voiceState) {
+                            VoiceState.RECORDING -> "● REC"
+                            VoiceState.PROCESSING -> "..."
+                            VoiceState.AI_PROCESSING -> "AI..."
+                            else -> "ЗАПИСЬ"
+                        },
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (uiState.voiceState == VoiceState.IDLE) {
+                        Text("ручной", color = TextPrimary, fontSize = 11.sp)
+                    }
+                    if (uiState.voiceState == VoiceState.RECORDING) {
+                        Text("стоп", color = TextPrimary, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        // Result text
+        val resultText = uiState.lastRecognizedText
+        if (resultText != null) {
+            Text(
+                text = resultText,
+                color = TextSecondary,
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(CardDark)
+                    .padding(12.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun StepCard(
+    step: String,
+    title: String,
+    description: String,
+    buttonText: String?,
+    onClick: (() -> Unit)?
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(CardDark)
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "$step. $title",
+            color = AccentBlue,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = description,
+            color = TextSecondary,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 16.sp
+        )
+        if (buttonText != null && onClick != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onClick,
+                colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(buttonText, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+            }
         }
     }
 }
 
 @Composable
-private fun PermissionCard(
+private fun StatusCard(
     text: String,
     buttonText: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isWarning: Boolean = false
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -224,7 +378,7 @@ private fun PermissionCard(
     ) {
         Text(
             text = text,
-            color = RecordingRed,
+            color = if (isWarning) RecordingRed else TextSecondary,
             fontSize = 14.sp,
             textAlign = TextAlign.Center
         )
@@ -233,8 +387,6 @@ private fun PermissionCard(
             onClick = onClick,
             colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
             shape = RoundedCornerShape(8.dp)
-        ) {
-            Text(buttonText, fontWeight = FontWeight.Medium)
-        }
+        ) { Text(buttonText, fontWeight = FontWeight.Medium) }
     }
 }

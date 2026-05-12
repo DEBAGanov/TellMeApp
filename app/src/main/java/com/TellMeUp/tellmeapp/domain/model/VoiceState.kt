@@ -10,5 +10,6 @@ package com.TellMeUp.tellmeapp.domain.model
 enum class VoiceState {
     IDLE,
     RECORDING,
-    PROCESSING
+    PROCESSING,
+    AI_PROCESSING
 }

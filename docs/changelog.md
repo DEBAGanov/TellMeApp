@@ -4,6 +4,64 @@
 
 ---
 
+## [2026-05-12] - Этап 9: Поддержка нескольких AI провайдеров (z.ai + Claude)
+### Добавлено
+- `ClaudeMessageDto` — DTO для Claude Messages API (request/response с content blocks)
+- `ClaudeApi` — HTTP клиент для Claude (`POST /v1/messages`, `x-api-key` + `anthropic-version`, модель `claude-sonnet-4-20250514`)
+- `AiProvider` enum — выбор между `ZAI` и `CLAUDE`
+- `ClaudeRepository` / `ClaudeRepositoryImpl` — репозиторий для Claude API
+- `SendClaudeMessageUseCase` — domain use case для Claude
+- `PreferencesStore`: добавлены `aiProvider` и `claudeApiKey`
+- `RepositoryModule`: привязка `ClaudeRepository`
+### Изменено
+- `SettingsScreen` — добавлено поле ввода API ключа Claude
+- `SettingsViewModel` — управление Claude API ключом (inject `ClaudeRepository`)
+- `MainScreen` — добавлен селектор провайдера (z.ai / Claude), описание AI обновляется динамически
+- `MainViewModel` — добавлен `aiProvider` в state, метод `selectProvider()` с сохранением в DataStore
+- `VoiceForegroundService` — маршрутизация AI запросов: `processWithZai()` / `processWithClaude()` на основе `aiProvider`
+- `tasktracker.md` — добавлен Этап 9
+
+---
+
+## [2026-05-11] - Этап 8: AI ассистент (z.ai)
+### Добавлено
+- `ChatCompletionDto` — DTO для z.ai Chat Completions API (request/response)
+- `AiChatApi` — HTTP клиент для z.ai (`POST /chat/completions`, Bearer auth, модель `glm-5.1`)
+- `AiChatRepository` / `AiChatRepositoryImpl` — репозиторий для AI чата
+- `SendAiMessageUseCase` — domain use case
+- `VoiceState.AI_PROCESSING` — новое состояние для AI обработки
+- `PreferencesStore`: добавлены `aiEnabled` и `aiApiKey`
+### Изменено
+- `SettingsScreen` — добавлено поле ввода API ключа z.ai
+- `SettingsViewModel` — управление AI API ключом
+- `MainScreen` — добавлен переключатель AI ассистент
+- `MainViewModel` — добавлен `isAiModeEnabled`, метод `toggleAiMode()`
+- `VoiceForegroundService` — AI обработка (processWithAi), вставка ответа AI
+- `StatusIndicator`, `AssistantOverlay`, `AssistantViewModel` — поддержка `AI_PROCESSING`
+### Исправлено
+- URL z.ai изменён с `/api/paas/v4` на `/api/coding/paas/v4` (GLM Coding Plan)
+
+---
+
+## [2026-05-09] - Этап 6: Digital Assistant + Этап 7: Исправления
+### Добавлено
+- `AssistantActivity` — точка входа через ACTION_ASSIST/ACTION_VOICE_ASSIST
+- `AssistantOverlay` — прозрачный Compose-оверлей с автозаписью
+- `AssistantViewModel` — делегирует VoiceForegroundService
+- Прозрачная тема `Theme.TellMeApp.Assistant` в `themes.xml`
+- `AppLogger` — ring-buffer логгер с вкладкой «Логи» в приложении
+- Кнопка «Copy» на экране логов
+### Изменено
+- `VoiceForegroundService` — перенос записи из ViewModel в сервис, MediaSession для Volume Up/Down
+- `MainViewModel` — делегирует запись сервису
+- `VoiceAccessibilityService` — вставка текста в позицию курсора (textSelectionStart/End)
+- `accessibility_service_config.xml` — обновлены флаги и типы событий
+### Исправлено
+- AquaVoice API URL: `/v1` → `/api/v1`, модель: `avalon-1` → `avalon-v1.5`
+- SSL bypass в OkHttpClient для DNS-перехвата провайдера
+
+---
+
 ## [2026-05-08] - Этап 5: Полировка и релиз
 ### Добавлено
 - `SettingsScreen` — экран настроек: API-ключ AquaVoice, виброотклик, визуальное уведомление, тёмная тема
@@ -91,7 +149,6 @@
 - Доменные модели: `VoiceState`, `Subscription`, `Transcription`
 - Цветовая палитра в стиле Happ (тёмно-синий + голубые акценты)
 - Разрешения в AndroidManifest: RECORD_AUDIO, FOREGROUND_SERVICE, INTERNET, VIBRATE, POST_NOTIFICATIONS
-- Файлы ответов на вопросы `docs/qa.md` обновлены
 
 ### Изменено
 - `libs.versions.toml` — добавлено 10+ новых зависимостей и 3 плагина

@@ -1,7 +1,7 @@
 /**
  * @file: MainViewModel.kt
- * @description: ViewModel for main screen — hold Volume Up to record, release to recognize
- * @dependencies: Hilt, VoiceState, VoiceForegroundService, AudioRecorder, RecognizeSpeechUseCase
+ * @description: ViewModel for main screen — delegates recording to VoiceForegroundService
+ * @dependencies: Hilt, VoiceState, VoiceForegroundService
  * @created: 2026-05-08
  */
 
@@ -11,19 +11,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.TellMeUp.tellmeapp.data.local.PreferencesStore
+import com.TellMeUp.tellmeapp.domain.model.AiProvider
 import com.TellMeUp.tellmeapp.domain.model.Subscription
 import com.TellMeUp.tellmeapp.domain.model.VoiceState
-import com.TellMeUp.tellmeapp.domain.repository.SpeechRepository
-import com.TellMeUp.tellmeapp.domain.usecase.RecognizeSpeechUseCase
-import com.TellMeUp.tellmeapp.service.AudioRecorder
 import com.TellMeUp.tellmeapp.service.StopServiceReceiver
-import com.TellMeUp.tellmeapp.service.VoiceAccessibilityService
 import com.TellMeUp.tellmeapp.service.VoiceForegroundService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -32,7 +27,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 data class MainUiState(
@@ -40,21 +34,19 @@ data class MainUiState(
     val voiceState: VoiceState = VoiceState.IDLE,
     val subscription: Subscription? = null,
     val lastRecognizedText: String? = null,
-    val hasPermissions: Boolean = false
+    val hasPermissions: Boolean = false,
+    val isAiModeEnabled: Boolean = false,
+    val aiProvider: AiProvider = AiProvider.ZAI
 )
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val recognizeSpeechUseCase: RecognizeSpeechUseCase,
-    private val speechRepository: SpeechRepository
+    private val preferencesStore: PreferencesStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
-
-    private val audioRecorder = AudioRecorder()
-    private var currentAudioFile: File? = null
 
     private val stopReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
@@ -62,27 +54,36 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private val recordingReceiver = object : BroadcastReceiver() {
+    private val stateReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context, intent: Intent) {
-            when (intent.action) {
-                VoiceAccessibilityService.ACTION_RECORDING_START -> startRecording()
-                VoiceAccessibilityService.ACTION_RECORDING_STOP -> stopAndRecognize()
-            }
+            syncServiceState()
         }
     }
 
     init {
+        viewModelScope.launch {
+            preferencesStore.aiEnabled.collect { enabled ->
+                _uiState.value = _uiState.value.copy(isAiModeEnabled = enabled)
+            }
+        }
+
+        viewModelScope.launch {
+            preferencesStore.aiProvider.collect { provider ->
+                _uiState.value = _uiState.value.copy(aiProvider = AiProvider.fromKey(provider))
+            }
+        }
+
         context.registerReceiver(
             stopReceiver,
             IntentFilter(StopServiceReceiver.ACTION_SERVICE_STOPPED),
             Context.RECEIVER_NOT_EXPORTED
         )
 
-        val recordingFilter = IntentFilter().apply {
-            addAction(VoiceAccessibilityService.ACTION_RECORDING_START)
-            addAction(VoiceAccessibilityService.ACTION_RECORDING_STOP)
-        }
-        context.registerReceiver(recordingReceiver, recordingFilter, Context.RECEIVER_NOT_EXPORTED)
+        context.registerReceiver(
+            stateReceiver,
+            IntentFilter(VoiceForegroundService.ACTION_VOICE_STATE_CHANGED),
+            Context.RECEIVER_NOT_EXPORTED
+        )
     }
 
     fun onPermissionsGranted() {
@@ -96,102 +97,55 @@ class MainViewModel @Inject constructor(
         } else {
             VoiceForegroundService.start(context)
             _uiState.value = _uiState.value.copy(isServiceActive = true)
+            syncServiceState()
         }
     }
 
-    private fun startRecording() {
-        if (_uiState.value.voiceState != VoiceState.IDLE) return
-
-        try {
-            val audioFile = File(context.cacheDir, "voice_${System.currentTimeMillis()}.wav")
-            currentAudioFile = audioFile
-            audioRecorder.start(audioFile)
-
-            vibrate(shortVibration = true)
-
-            _uiState.value = _uiState.value.copy(
-                voiceState = VoiceState.RECORDING,
-                lastRecognizedText = null
-            )
-        } catch (e: Exception) {
-            showToast("Ошибка микрофона: ${e.message}")
-        }
-    }
-
-    private fun stopAndRecognize() {
-        if (_uiState.value.voiceState != VoiceState.RECORDING) return
-
-        vibrate(shortVibration = false)
-        _uiState.value = _uiState.value.copy(voiceState = VoiceState.PROCESSING)
-
-        viewModelScope.launch(Dispatchers.IO) {
-            val audioFile = audioRecorder.stop()
-
-            if (audioFile == null || !audioFile.exists() || audioFile.length() <= 44) {
-                launch(Dispatchers.Main) {
-                    _uiState.value = _uiState.value.copy(voiceState = VoiceState.IDLE)
-                    showToast("Ошибка: пустая запись")
-                }
-                return@launch
-            }
-
-            if (!speechRepository.hasApiKey()) {
-                val durationSec = (audioFile.length() - 44) / (16000 * 2)
-                launch(Dispatchers.Main) {
-                    _uiState.value = _uiState.value.copy(
-                        voiceState = VoiceState.IDLE,
-                        lastRecognizedText = "[Тест] Записано ${durationSec}с, ${audioFile.length()} байт"
-                    )
-                    showToast("Запись $durationSec сек. Добавьте API-ключ в настройках.")
-                }
-                audioFile.delete()
-                return@launch
-            }
-
-            val result = recognizeSpeechUseCase(audioFile)
-
-            launch(Dispatchers.Main) {
-                if (result.isSuccess && result.text.isNotBlank()) {
-                    insertRecognizedText(result.text)
-                    _uiState.value = _uiState.value.copy(
-                        voiceState = VoiceState.IDLE,
-                        lastRecognizedText = result.text
-                    )
-                } else {
-                    val errorCode = result.errorCode ?: "UNKNOWN"
-                    showToast("Не удалось распознать [${errorCode}]")
-                    _uiState.value = _uiState.value.copy(voiceState = VoiceState.IDLE)
-                }
-            }
-
-            audioFile.delete()
-        }
-    }
-
-    private fun insertRecognizedText(text: String) {
-        val service = VoiceAccessibilityService.getInstance()
+    fun startRecordingManually() {
+        val service = VoiceForegroundService.getInstance()
         if (service != null) {
-            service.insertText(text)
+            service.startRecording()
+            syncServiceState()
         } else {
-            showToast("Включите Accessibility в настройках")
+            showToast("Сначала запустите сервис")
         }
     }
 
-    private fun vibrate(shortVibration: Boolean) {
-        val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager)
-                .defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    fun stopRecordingManually() {
+        val service = VoiceForegroundService.getInstance()
+        if (service != null) {
+            service.stopAndRecognize()
+            syncServiceState()
         }
+    }
 
-        val effect = if (shortVibration) {
-            VibrationEffect.createOneShot(50, 200)
-        } else {
-            VibrationEffect.createOneShot(100, 255)
+    fun toggleAiMode() {
+        val newValue = !_uiState.value.isAiModeEnabled
+        _uiState.value = _uiState.value.copy(isAiModeEnabled = newValue)
+        viewModelScope.launch {
+            preferencesStore.saveAiEnabled(newValue)
         }
-        vibrator.vibrate(effect)
+    }
+
+    fun selectProvider(provider: AiProvider) {
+        _uiState.value = _uiState.value.copy(aiProvider = provider)
+        viewModelScope.launch {
+            preferencesStore.saveAiProvider(provider.key)
+        }
+    }
+
+    private fun syncServiceState() {
+        val service = VoiceForegroundService.getInstance()
+        if (service != null) {
+            viewModelScope.launch(Dispatchers.Main) {
+                service.voiceState.collect { state ->
+                    _uiState.value = _uiState.value.copy(voiceState = state)
+                }
+            }
+            _uiState.value = _uiState.value.copy(
+                lastRecognizedText = service.lastRecognizedText.value
+            )
+        }
     }
 
     private fun showToast(message: String) {
@@ -200,8 +154,7 @@ class MainViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        audioRecorder.release()
         try { context.unregisterReceiver(stopReceiver) } catch (_: IllegalArgumentException) {}
-        try { context.unregisterReceiver(recordingReceiver) } catch (_: IllegalArgumentException) {}
+        try { context.unregisterReceiver(stateReceiver) } catch (_: IllegalArgumentException) {}
     }
 }

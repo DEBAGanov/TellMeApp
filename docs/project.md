@@ -2,17 +2,19 @@
 
 ## 1. Обзор проекта
 
-**TellMeApp** — фоновое Android-приложение для голосового ввода текста в любое поле ввода на устройстве. Пользователь нажимает кнопку увеличения громкости (двойное нажатие), произносит текст, повторно нажимает кнопку — распознанный текст вставляется в позицию курсора.
+**TellMeApp** — фоновое Android-приложение для голосового ввода текста в любое поле ввода на устройстве. Пользователь зажимает кнопку питания (Digital Assistant), произносит текст, отпускает — распознанный текст вставляется в позицию курсора. Опционально текст обрабатывается через AI (z.ai или Claude) перед вставкой.
 
 ### 1.1. Ключевые возможности
 
 | # | Возможность | Описание |
 |---|------------|----------|
 | 1 | Голосовой ввод | Запись голоса и распознавание через AquaVoice API (Avalon) |
-| 2 | Глобальный триггер | Двойное нажатие кнопки увеличения громкости в любом приложении |
-| 3 | Вставка текста | Автоматическая вставка распознанного текста в позицию курсора |
-| 4 | Подписка | Активация по ссылке (формат `https://s.axolab.org/...`), отображение статистики и срока действия |
-| 5 | Фоновая работа | Приложение работает как фоновый сервис, не требует открытого UI |
+| 2 | Глобальный триггер | Долгое нажатие кнопки питания (Digital Assistant) или Volume Up (MediaSession) |
+| 3 | Вставка текста | Автоматическая вставка распознанного текста в позицию курсора через AccessibilityService |
+| 4 | AI обработка | Опциональная обработка текста через z.ai (GLM) или Claude (Anthropic) |
+| 5 | Выбор провайдера | Переключатель между z.ai и Claude на главном экране |
+| 6 | Подписка | Активация по ссылке, отображение статистики и срока действия |
+| 7 | Фоновая работа | ForegroundService + MediaSession для работы в фоне |
 
 ### 1.2. Целевая аудитория
 
@@ -46,45 +48,47 @@
 
 ```mermaid
 graph TB
-    subgraph "Android System Services"
-        VOL[Volume Button Events]
+    subgraph "Android System"
+        PWR[Power Button<br/>Digital Assistant]
+        VOL[Volume Up/Down<br/>MediaSession]
         ACC[AccessibilityService]
     end
 
     subgraph "TellMeApp Services"
-        FS[ForegroundService<br/>VoiceController]
+        FS[VoiceForegroundService]
         AR[AudioRecorder]
+        AA[AssistantActivity<br/>AssistantOverlay]
     end
 
     subgraph "Business Logic"
-        VM[VoiceViewModel]
-        SM[SubscriptionManager]
+        VM[MainViewModel]
         SR[SpeechRepository]
+        ZAI[AiChatRepository<br/>z.ai]
+        CL[ClaudeRepository<br/>Claude]
     end
 
-    subgraph "External"
-        API[AquaVoice API<br/>api.aqua.sh/v1]
-        SUB[Subscription API<br/>будет настроен позже]
+    subgraph "External APIs"
+        AV[AquaVoice API<br/>api.aquavoice.com]
+        ZA[z.ai API<br/>api.z.ai]
+        CA[Claude API<br/>api.anthropic.com]
     end
 
-    subgraph "UI"
-        MAIN[MainActivity<br/>Настройки и статус]
-        STAT[Статистика<br/>и подписка]
-    end
-
-    VOL-->|Двойное нажатие|FS
-    FS-->|Старт/Стоп|AR
-    AR-->|Audio bytes|SR
-    SR-->|POST /audio/transcriptions|API
-    API-->|Текст|SR
-    SR-->|Распознанный текст|VM
-    VM-->|Вставить текст|ACC
-    ACC-->|ACTION_SET_TEXT<br/>или clipboard+paste|VOL
-
-    SUB-->|Активация/статус|SM
-    SM-->|Данные подписки|VM
-    VM-->MAIN
-    VM-->STAT
+    PWR-->|ACTION_ASSIST|AA
+    VOL-->|MediaSession callback|FS
+    AA-->|start/stop|FS
+    FS-->|record|AR
+    AR-->|WAV file|SR
+    SR-->|POST transcriptions|AV
+    AV-->|text|SR
+    SR-->|recognized text|FS
+    FS-->|AI processing|ZAI
+    FS-->|AI processing|CL
+    ZAI-->|POST chat/completions|ZA
+    CL-->|POST /v1/messages|CA
+    ZA-->|AI response|ZAI
+    CA-->|AI response|CL
+    FS-->|insertText|ACC
+    ACC-->|ACTION_SET_TEXT<br/>clipboard fallback|FS
 ```
 
 ### 2.3. Поток голосового ввода
@@ -92,25 +96,30 @@ graph TB
 ```mermaid
 sequenceDiagram
     participant U as Пользователь
-    participant V as Volume Button
+    participant PWR as Кнопка питания
     participant FS as ForegroundService
     participant AR as AudioRecorder
-    participant API as AquaVoice API
+    participant AV as AquaVoice API
+    participant AI as AI (z.ai/Claude)
     participant ACC as AccessibilityService
 
-    U->>V: Двойное нажатие Volume Up
-    V->>FS: Событие кнопки
-    FS->>AR: startRecording()
-    FS->>U: Визуальный/вибро отклик
+    U->>PWR: Зажать кнопку питания
+    PWR->>FS: ACTION_ASSIST → startRecording()
+    FS->>U: Виброотклик
 
-    Note over AR: Запись аудио
+    Note over AR: Запись аудио (WAV)
 
-    U->>V: Повторное двойное нажатие
-    V->>FS: Событие кнопки
-    FS->>AR: stopRecording()
-    AR->>API: POST /v1/audio/transcriptions<br/>multipart/form-data
-    API-->>FS: { "text": "распознанный текст" }
-    FS->>ACC: insertText("распознанный текст")
+    U->>PWR: Отпустить кнопку
+    PWR->>FS: → stopAndRecognize()
+    AR->>AV: POST /audio/transcriptions
+    AV-->>FS: { "text": "распознанный текст" }
+
+    alt AI включён
+        FS->>AI: Отправить текст (z.ai или Claude)
+        AI-->>FS: AI ответ
+    end
+
+    FS->>ACC: insertText(text)
     ACC->>U: Текст вставлен в поле ввода
 ```
 
@@ -125,120 +134,164 @@ sequenceDiagram
 | UI | Jetpack Compose | BOM 2024.09.00 | Декларативный UI |
 | Design | Material 3 | — | Компоненты дизайна |
 | DI | Hilt | — | Внедрение зависимостей |
-| Network | OkHttp + Retrofit | — | HTTP-запросы к AquaVoice API |
-| Audio | Android AudioRecord | — | Запись аудио |
+| Network | OkHttp | — | HTTP-запросы к API |
+| Audio | Android AudioRecord | — | Запись аудио (16kHz, 16-bit, mono) |
 | Background Work | Foreground Service | — | Фоновая работа приложения |
 | Accessibility | AccessibilityService | — | Вставка текста в чужие поля |
 | Local Storage | DataStore (Preferences) | — | Хранение настроек и ключей |
 | Serialization | Kotlinx Serialization | — | Парсинг JSON ответов API |
 | Navigation | Compose Navigation | — | Навигация между экранами |
+| Media | MediaSessionCompat | — | Перехват кнопок громкости |
 
 ---
 
-## 4. Интеграция с AquaVoice API
+## 4. Интеграции с внешними API
 
-### 4.1. Параметры подключения
+### 4.1. AquaVoice API (распознавание речи)
 
 | Параметр | Значение |
 |----------|----------|
-| Base URL | `https://api.aqua.sh/v1` |
-| Модель | `avalon-1` |
+| Base URL | `https://api.aquavoice.com/api/v1` |
+| Модель | `avalon-v1.5` |
 | Auth | `Authorization: Bearer <api-key>` |
 | Формат | OpenAI Whisper-compatible |
 
-### 4.2. Основной endpoint
+**Endpoint:** `POST /audio/transcriptions` (multipart/form-data)
 
-**`POST /v1/audio/transcriptions`**
+### 4.2. z.ai API (AI обработка)
 
-**Request:** `multipart/form-data`
-```
-model: "avalon-1"
-file: <audio_file.wav>
+| Параметр | Значение |
+|----------|----------|
+| Base URL | `https://api.z.ai/api/coding/paas/v4` |
+| Модель | `glm-5.1` |
+| Auth | `Authorization: Bearer <token>` |
+| Формат | OpenAI Chat Completions-compatible |
+
+**Endpoint:** `POST /chat/completions`
+
+**Request:**
+```json
+{
+  "model": "glm-5.1",
+  "messages": [
+    {"role": "system", "content": "You are a helpful AI assistant..."},
+    {"role": "user", "content": "текст пользователя"}
+  ]
+}
 ```
 
 **Response:**
 ```json
 {
-  "text": "распознанный текст"
+  "choices": [{"message": {"role": "assistant", "content": "ответ AI"}}]
 }
 ```
 
-### 4.3. Поддерживаемые параметры
+### 4.3. Claude API (AI обработка)
 
-| Параметр | Тип | Описание |
-|----------|-----|----------|
-| `model` | string | `"avalon-1"` |
-| `file` | binary | Аудиофайл (WAV, MP3 и др.) |
-| `language` | string | Код языка (опционально) |
-| `response_format` | string | `json` (по умолчанию), `verbose_json` |
-| `stream` | boolean | Потоковый режим (SSE) |
+| Параметр | Значение |
+|----------|----------|
+| Base URL | `https://api.anthropic.com` |
+| Модель | `claude-sonnet-4-20250514` |
+| Auth | `x-api-key: <api-key>` |
+| Version | `anthropic-version: 2023-06-01` |
+
+**Endpoint:** `POST /v1/messages`
+
+**Request:**
+```json
+{
+  "model": "claude-sonnet-4-20250514",
+  "max_tokens": 1024,
+  "system": "You are a helpful AI assistant...",
+  "messages": [{"role": "user", "content": "текст пользователя"}]
+}
+```
+
+**Response:**
+```json
+{
+  "content": [{"type": "text", "text": "ответ AI"}],
+  "stop_reason": "end_turn"
+}
+```
 
 ---
 
-## 5. Структура проекта (целевая)
+## 5. Структура проекта
 
 ```
-app/src/main/java/com/example/tellmeapp/
-├── di/                             # Hilt модули
-│   ├── AppModule.kt
-│   ├── NetworkModule.kt
-│   └── RepositoryModule.kt
+app/src/main/java/com/TellMeUp/tellmeapp/
+├── di/
+│   ├── NetworkModule.kt            # OkHttpClient + Json
+│   └── RepositoryModule.kt         # Hilt bindings
 ├── data/
 │   ├── remote/
 │   │   ├── api/
-│   │   │   └── AquaVoiceApi.kt     # Retrofit интерфейс
-│   │   ├── dto/
-│   │   │   ├── TranscriptionRequest.kt
-│   │   │   └── TranscriptionResponse.kt
-│   │   └── subscription/
-│   │       └── SubscriptionApi.kt  # API подписок (позже)
+│   │   │   ├── AquaVoiceApi.kt     # Speech-to-text API
+│   │   │   ├── AiChatApi.kt        # z.ai Chat Completions
+│   │   │   └── ClaudeApi.kt        # Claude Messages API
+│   │   └── dto/
+│   │       ├── TranscriptionResponse.kt
+│   │       ├── ChatCompletionDto.kt
+│   │       └── ClaudeMessageDto.kt
 │   ├── local/
-│   │   └── PreferencesStore.kt     # DataStore настройки
+│   │   └── PreferencesStore.kt     # DataStore (keys, settings, provider)
 │   └── repository/
 │       ├── SpeechRepositoryImpl.kt
-│       └── SubscriptionRepositoryImpl.kt
+│       ├── SubscriptionRepositoryImpl.kt
+│       ├── AiChatRepositoryImpl.kt
+│       └── ClaudeRepositoryImpl.kt
 ├── domain/
 │   ├── model/
-│   │   ├── Transcription.kt
+│   │   ├── VoiceState.kt           # IDLE, RECORDING, PROCESSING, AI_PROCESSING
+│   │   ├── AiProvider.kt           # ZAI, CLAUDE
 │   │   ├── Subscription.kt
-│   │   └── VoiceState.kt
+│   │   └── Transcription.kt
 │   ├── repository/
 │   │   ├── SpeechRepository.kt
-│   │   └── SubscriptionRepository.kt
+│   │   ├── SubscriptionRepository.kt
+│   │   ├── AiChatRepository.kt
+│   │   └── ClaudeRepository.kt
 │   └── usecase/
 │       ├── RecognizeSpeechUseCase.kt
+│       ├── SendAiMessageUseCase.kt
+│       ├── SendClaudeMessageUseCase.kt
 │       ├── ActivateSubscriptionUseCase.kt
 │       └── GetSubscriptionStatusUseCase.kt
 ├── service/
-│   ├── VoiceForegroundService.kt   # Фоновый сервис управления
-│   ├── VoiceAccessibilityService.kt # Вставка текста
-│   └── AudioRecorder.kt            # Запись аудио
+│   ├── VoiceForegroundService.kt   # Recording + recognition + AI + insertion
+│   ├── VoiceAccessibilityService.kt # Text insertion at cursor
+│   ├── AudioRecorder.kt            # WAV recording
+│   ├── StopServiceReceiver.kt      # Notification stop button
+│   └── VolumeButtonDetector.kt     # Double-press detector (legacy)
 ├── ui/
 │   ├── theme/
 │   │   ├── Color.kt
 │   │   ├── Theme.kt
 │   │   └── Type.kt
+│   ├── component/
+│   │   └── StatusIndicator.kt
 │   ├── navigation/
 │   │   └── AppNavigation.kt
-│   ├── screen/
-│   │   ├── main/
-│   │   │   ├── MainScreen.kt       # Главный экран (статус)
-│   │   │   └── MainViewModel.kt
-│   │   ├── subscription/
-│   │   │   ├── SubscriptionScreen.kt
-│   │   │   └── SubscriptionViewModel.kt
-│   │   └── settings/
-│   │       ├── SettingsScreen.kt
-│   │       └── SettingsViewModel.kt
-│   └── component/
-│       ├── StatusIndicator.kt      # Индикатор статуса записи
-│       ├── SubscriptionCard.kt     # Карточка подписки
-│       └── PowerButton.kt          # Кнопка включения (стиль Happ)
-├── util/
-│   ├── VolumeButtonDetector.kt     # Детектор двойного нажатия
-│   ├── TextInserter.kt             # Вставка текста через Accessibility
-│   └── Constants.kt
-└── MainActivity.kt
+│   └── screen/
+│       ├── main/
+│       │   ├── MainScreen.kt       # Service control + AI toggle + provider selector
+│       │   └── MainViewModel.kt
+│       ├── subscription/
+│       │   ├── SubscriptionScreen.kt
+│       │   └── SubscriptionViewModel.kt
+│       ├── settings/
+│       │   ├── SettingsScreen.kt   # API keys (AquaVoice, z.ai, Claude) + toggles
+│       │   └── SettingsViewModel.kt
+│       ├── assistant/
+│       │   ├── AssistantActivity.kt
+│       │   ├── AssistantOverlay.kt
+│       │   └── AssistantViewModel.kt
+│       └── logs/
+│           └── LogsScreen.kt       # In-app log viewer
+└── util/
+    └── AppLogger.kt                # Ring-buffer logger
 ```
 
 ---
@@ -247,85 +300,76 @@ app/src/main/java/com/example/tellmeapp/
 
 ### 6.1. Главный экран (Main)
 
-Стиль: аналог Happ — тёмный фон, центральная кнопка статуса.
-
-- **Центральный элемент**: большая круглая кнопка (стиль power button из Happ), показывающая статус сервиса
-  - Серая — сервис остановлен
-  - Голубая с glow — сервис активен, ожидает команду
-  - Пульсирующая красная — идёт запись голоса
-- **Под кнопкой**: текст статуса ("Готов к работе" / "Запись..." / "Обработка...")
-- **Нижняя панель**: статистика использования (количество распознаваний, минуты аудио)
+- Кнопка СТАРТ/СТОП СЕРВИС
+- Инструкция: кнопка питания → API ключ → AI ассистент
+- Переключатель AI ассистент (вкл/выкл)
+- Селектор провайдера (z.ai / Claude) — виден при включённом AI
+- Кнопка ручной записи (круглая)
+- Результат распознавания
 
 ### 6.2. Экран подписки (Subscription)
 
 - Поле ввода ссылки активации
-- Карточка с информацией о подписке:
-  - Статус (активна / неактивна)
-  - Срок действия
-  - Статистика использования (запросов, минут)
+- Карточка с информацией о подписке (статус, срок, тариф)
 - Кнопка "Активировать"
 
 ### 6.3. Экран настроек (Settings)
 
-- Язык распознавания (по умолчанию — авто)
-- API-ключ (для тестового режима — ручной ввод)
-- Виброотклик при нажатии (вкл/выкл)
-- Визуальное уведомление при записи (вкл/выкл)
-- Тема (тёмная/светлая)
+- API ключ AquaVoice (распознавание речи)
+- API ключ z.ai (AI обработка, GLM Coding Plan)
+- API ключ Claude (AI обработка, Anthropic)
+- Переключатели: виброотклик, визуальное уведомление
+- Тёмная тема
+
+### 6.4. Ассистент (AssistantOverlay)
+
+- Прозрачный оверлей при запуске через Digital Assistant
+- Автозапись при открытии
+- Тап для остановки и распознавания
 
 ---
 
 ## 7. Ключевые технические решения
 
-### 7.1. Детекция двойного нажатия Volume Up
+### 7.1. Триггер записи
 
-Используется `AccessibilityService` с перехватом `KEYEVENT` через `onKeyEvent`. Альтернатива — `MediaSession` для перехвата кнопок громкости, но AccessibilityService даёт больше контроля и позволяет одновременно вставлять текст.
-
-**Алгоритм**: первое нажатие запускает таймер (300мс), если второе нажатие приходит до истечения таймера — это двойное нажатие.
+**Основной:** Digital Assistant (кнопка питания) через `ACTION_ASSIST` intent → `AssistantActivity`.
+**Резервный:** MediaSession для перехвата Volume Up/Down (долгое нажатие 400мс).
 
 ### 7.2. Вставка текста в чужое поле ввода
 
 Через `AccessibilityService`:
 1. Определение текущего фокусированного `AccessibilityNodeInfo`
 2. Проверка `isEditable` у узла
-3. `Bundle` с `ACTION_SET_TEXT` для вставки текста
+3. Вставка в позицию курсора через `textSelectionStart/End`
 4. Fallback: копирование в clipboard + `ACTION_PASTE`
 
-### 7.3. Фоновый сервис
+### 7.3. AI обработка
 
-`ForegroundService` с постоянным уведомлением — обязателен для работы `AudioRecord` и `AccessibilityService` в фоне. Показывает уведомление "TellMeApp активен" с кнопкой быстрого выключения.
+Распознанный текст опционально отправляется в AI:
+- **z.ai** (GLM Coding Plan) — OpenAI Chat Completions-compatible, Bearer auth
+- **Claude** (Anthropic) — Messages API, `x-api-key` + `anthropic-version` headers
+- Провайдер выбирается на главном экране, сохраняется в DataStore
+- Ответ AI вставляется вместо оригинального текста
+- При ошибке AI — fallback на оригинальный распознанный текст
+
+### 7.4. Фоновый сервис
+
+`ForegroundService` с постоянным уведомлением. Держит `MediaSession`, `AudioRecorder`, все repository/use case инстансы. Маршрутизирует AI запросы к выбранному провайдеру.
 
 ---
 
 ## 8. Этапы разработки
 
-### Этап 1: Базовая инфраструктура (MVP)
-- Настройка архитектуры (Hilt, навигация, структура пакетов)
-- Базовый UI главного экрана (стиль Happ)
-- `ForegroundService` с уведомлением
-- `AudioRecorder` — запись аудио
-
-### Этап 2: Голосовое распознавание
-- Интеграция AquaVoice API (Retrofit)
-- Детектор двойного нажатия Volume Up
-- Поток записи → API → получение текста
-
-### Этап 3: Вставка текста
-- `AccessibilityService` для вставки текста
-- Определение фокусированного поля
-- Реализация вставки (`ACTION_SET_TEXT` / clipboard fallback)
-
-### Этап 4: Подписка и статистика
-- Экран подписки
-- Активация по ссылке
-- Отображение статистики и срока действия
-- (API подписок будет подключён позже, пока — mock)
-
-### Этап 5: Полировка и релиз
-- Настройки (язык, вибро, тема)
-- Обработка ошибок и edge cases
-- Оптимизация батареи
-- Тестирование
+### Этап 1: Базовая инфраструктура (MVP) — завершён
+### Этап 2: Голосовое распознавание — завершён
+### Этап 3: Вставка текста — завершён
+### Этап 4: Подписка и статистика — завершён
+### Этап 5: Полировка и релиз — завершён
+### Этап 6: Digital Assistant — завершён
+### Этап 7: Исправление триггера Volume Up — завершён
+### Этап 8: AI ассистент (z.ai) — завершён
+### Этап 9: Поддержка нескольких AI провайдеров (z.ai + Claude) — завершён
 
 ---
 
@@ -333,10 +377,10 @@ app/src/main/java/com/example/tellmeapp/
 
 | Аспект | Решение |
 |--------|---------|
-| Хранение API-ключа | EncryptedSharedPreferences / Android Keystore |
-| Передача данных | HTTPS (TLS 1.3) |
-| Разрешения | Минимальный набор: RECORD_AUDIO, FOREGROUND_SERVICE, ACCESSIBILITY |
-| Приватность | Аудио не хранится локально, отправляется напрямую в API |
+| Хранение API-ключей | DataStore (не Encrypted, MVP) |
+| Передача данных | HTTPS (TLS) |
+| Разрешения | RECORD_AUDIO, FOREGROUND_SERVICE, ACCESSIBILITY |
+| Приватность | Аудио не хранится, отправляется напрямую в API |
 
 ---
 

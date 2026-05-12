@@ -40,6 +40,25 @@
             android:name=".service.StopServiceReceiver"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.screen.assistant.AssistantActivity"
+            android:exported="true"
+            android:theme="@style/Theme.TellMeApp.Assistant"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleTop"
+            android:showOnLockScreen="true"
+            android:turnScreenOn="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".service.VoiceAccessibilityService"
             android:exported="false"

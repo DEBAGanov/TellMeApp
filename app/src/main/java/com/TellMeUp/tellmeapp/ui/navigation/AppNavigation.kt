@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
@@ -31,6 +32,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.TellMeUp.tellmeapp.ui.screen.logs.LogsScreen
 import com.TellMeUp.tellmeapp.ui.screen.main.MainScreen
 import com.TellMeUp.tellmeapp.ui.screen.settings.SettingsScreen
 import com.TellMeUp.tellmeapp.ui.screen.subscription.SubscriptionScreen
@@ -43,13 +45,14 @@ import com.TellMeUp.tellmeapp.ui.theme.TextTertiary
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     data object Main : Screen("main", "Голос", Icons.Filled.Home)
     data object Subscription : Screen("subscription", "Подписка", Icons.Filled.Star)
+    data object Logs : Screen("logs", "Логи", Icons.Filled.List)
     data object Settings : Screen("settings", "Настройки", Icons.Filled.Settings)
 }
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
-    val screens = listOf(Screen.Main, Screen.Subscription, Screen.Settings)
+    val screens = listOf(Screen.Main, Screen.Subscription, Screen.Logs, Screen.Settings)
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -110,6 +113,9 @@ fun AppNavigation() {
             }
             composable(Screen.Subscription.route) {
                 SubscriptionScreen()
+            }
+            composable(Screen.Logs.route) {
+                LogsScreen()
             }
             composable(Screen.Settings.route) {
                 SettingsScreen()

@@ -68,6 +68,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.androidx.datastore.preferences)
+    implementation("androidx.media:media:1.7.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -25,6 +25,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okio.BufferedSource
+import com.TellMeUp.tellmeapp.util.AppLogger
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -36,9 +37,10 @@ class AquaVoiceApi @Inject constructor(
     private val json: Json
 ) {
     companion object {
-        private const val BASE_URL = "https://api.aqua.sh/v1"
+        private const val TAG = "AquaVoiceApi"
+        private const val BASE_URL = "https://api.aquavoice.com/api/v1"
         private const val TRANSCRIPTIONS_ENDPOINT = "$BASE_URL/audio/transcriptions"
-        private const val MODEL = "avalon-1"
+        private const val MODEL = "avalon-v1.5"
         private const val LANGUAGE = "ru"
         private const val AUDIO_MEDIA_TYPE = "audio/wav"
     }
@@ -54,6 +56,9 @@ class AquaVoiceApi @Inject constructor(
     suspend fun transcribeBatch(audioFile: File): Result<TranscriptionResponse> =
         withContext(Dispatchers.IO) {
             try {
+                val keyPrefix = if (apiKey.length > 8) apiKey.take(8) + "..." else "EMPTY"
+                AppLogger.d(TAG, "API request: file=${audioFile.name} size=${audioFile.length()} key=$keyPrefix model=$MODEL")
+
                 val requestBody = MultipartBody.Builder()
                     .setType(MultipartBody.FORM)
                     .addFormDataPart("model", MODEL)
@@ -68,8 +73,11 @@ class AquaVoiceApi @Inject constructor(
                 val request = buildRequest(requestBody)
                 val response = client.newCall(request).execute()
 
+                AppLogger.d(TAG, "API response: HTTP ${response.code}")
+
                 if (!response.isSuccessful) {
                     val errorBody = response.body?.string()
+                    AppLogger.e(TAG, "API error body: $errorBody")
                     val error = parseError(errorBody)
                     return@withContext Result.failure(
                         ApiException(
@@ -84,9 +92,12 @@ class AquaVoiceApi @Inject constructor(
                     ApiException(0, "Empty response", "EMPTY_RESPONSE")
                 )
 
+                AppLogger.d(TAG, "API response body: $body")
+
                 val result = json.decodeFromString<TranscriptionResponse>(body)
                 Result.success(result)
             } catch (e: Exception) {
+                AppLogger.e(TAG, "API exception: ${e.javaClass.simpleName}: ${e.message}")
                 Result.failure(e)
             }
         }

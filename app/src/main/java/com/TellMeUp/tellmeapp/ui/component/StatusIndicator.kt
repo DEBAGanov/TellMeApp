@@ -62,6 +62,10 @@ fun StatusIndicator(
                 val dots = ".".repeat((dotsCount.toInt() % 4).coerceAtLeast(1))
                 "Обработка$dots" to AccentBlue
             }
+            VoiceState.AI_PROCESSING -> {
+                val dots = ".".repeat((dotsCount.toInt() % 4).coerceAtLeast(1))
+                "AI обработка$dots" to AccentBlue
+            }
             VoiceState.IDLE -> {
                 if (isServiceActive) "Готов к работе" to AccentBlue
                 else "Сервис остановлен" to TextTertiary

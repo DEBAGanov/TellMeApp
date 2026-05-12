@@ -52,6 +52,10 @@ fun SettingsScreen(
         uiState = uiState,
         onApiKeyChanged = viewModel::onApiKeyChanged,
         onSaveApiKey = viewModel::saveApiKey,
+        onAiApiKeyChanged = viewModel::onAiApiKeyChanged,
+        onSaveAiApiKey = viewModel::saveAiApiKey,
+        onClaudeApiKeyChanged = viewModel::onClaudeApiKeyChanged,
+        onSaveClaudeApiKey = viewModel::saveClaudeApiKey,
         onVibrationChanged = viewModel::setVibrationEnabled,
         onVisualNotificationChanged = viewModel::setVisualNotificationEnabled,
         onDarkThemeChanged = viewModel::setDarkTheme
@@ -63,6 +67,10 @@ private fun SettingsScreenContent(
     uiState: SettingsUiState,
     onApiKeyChanged: (String) -> Unit,
     onSaveApiKey: () -> Unit,
+    onAiApiKeyChanged: (String) -> Unit,
+    onSaveAiApiKey: () -> Unit,
+    onClaudeApiKeyChanged: (String) -> Unit,
+    onSaveClaudeApiKey: () -> Unit,
     onVibrationChanged: (Boolean) -> Unit,
     onVisualNotificationChanged: (Boolean) -> Unit,
     onDarkThemeChanged: (Boolean) -> Unit
@@ -123,7 +131,85 @@ private fun SettingsScreenContent(
 
         HorizontalDivider(color = TextTertiary.copy(alpha = 0.3f))
 
-        SectionHeader("Управление")
+        SectionHeader("AI ассистент")
+
+        OutlinedTextField(
+            value = uiState.aiApiKey,
+            onValueChange = onAiApiKeyChanged,
+            label = { Text("API ключ z.ai") },
+            placeholder = { Text("Bearer token...") },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AccentBlue,
+                unfocusedBorderColor = TextTertiary,
+                focusedLabelColor = AccentBlue,
+                unfocusedLabelColor = TextTertiary,
+                cursorColor = AccentBlue,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = onSaveAiApiKey,
+            enabled = uiState.aiApiKey.isNotBlank() && !uiState.isAiApiKeySaved,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AccentBlue,
+                disabledContainerColor = AccentBlue.copy(alpha = 0.3f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+        ) {
+            Text(
+                text = if (uiState.isAiApiKeySaved) "Сохранено" else "Сохранить z.ai ключ",
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        OutlinedTextField(
+            value = uiState.claudeApiKey,
+            onValueChange = onClaudeApiKeyChanged,
+            label = { Text("API ключ Claude") },
+            placeholder = { Text("sk-ant-...") },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AccentBlue,
+                unfocusedBorderColor = TextTertiary,
+                focusedLabelColor = AccentBlue,
+                unfocusedLabelColor = TextTertiary,
+                cursorColor = AccentBlue,
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = onSaveClaudeApiKey,
+            enabled = uiState.claudeApiKey.isNotBlank() && !uiState.isClaudeApiKeySaved,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AccentBlue,
+                disabledContainerColor = AccentBlue.copy(alpha = 0.3f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+        ) {
+            Text(
+                text = if (uiState.isClaudeApiKeySaved) "Сохранено" else "Сохранить Claude ключ",
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        HorizontalDivider(color = TextTertiary.copy(alpha = 0.3f))
 
         SettingsToggle(
             title = "Виброотклик",

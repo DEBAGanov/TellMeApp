@@ -10,6 +10,7 @@ package com.TellMeUp.tellmeapp.data.local
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -33,6 +34,10 @@ class PreferencesStore @Inject constructor(
         private val KEY_EXPIRY_DATE = longPreferencesKey("expiry_date")
         private val KEY_TARIFF_TYPE = stringPreferencesKey("tariff_type")
         private val KEY_API_KEY = stringPreferencesKey("api_key")
+        private val KEY_AI_ENABLED = booleanPreferencesKey("ai_enabled")
+        private val KEY_AI_API_KEY = stringPreferencesKey("ai_api_key")
+        private val KEY_AI_PROVIDER = stringPreferencesKey("ai_provider")
+        private val KEY_CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
     }
 
     val subscription: Flow<Subscription?> = context.dataStore.data.map { prefs ->
@@ -73,6 +78,46 @@ class PreferencesStore @Inject constructor(
     suspend fun saveApiKey(key: String) {
         context.dataStore.edit { prefs ->
             prefs[KEY_API_KEY] = key
+        }
+    }
+
+    val aiEnabled: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_ENABLED] ?: false
+    }
+
+    suspend fun saveAiEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_AI_ENABLED] = enabled
+        }
+    }
+
+    val aiApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_API_KEY]
+    }
+
+    suspend fun saveAiApiKey(key: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_AI_API_KEY] = key
+        }
+    }
+
+    val aiProvider: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_AI_PROVIDER] ?: "zai"
+    }
+
+    suspend fun saveAiProvider(provider: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_AI_PROVIDER] = provider
+        }
+    }
+
+    val claudeApiKey: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CLAUDE_API_KEY]
+    }
+
+    suspend fun saveClaudeApiKey(key: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CLAUDE_API_KEY] = key
         }
     }
 }

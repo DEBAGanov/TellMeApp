@@ -7,8 +7,12 @@
 
 package com.TellMeUp.tellmeapp.di
 
+import com.TellMeUp.tellmeapp.data.repository.AiChatRepositoryImpl
+import com.TellMeUp.tellmeapp.data.repository.ClaudeRepositoryImpl
 import com.TellMeUp.tellmeapp.data.repository.SpeechRepositoryImpl
 import com.TellMeUp.tellmeapp.data.repository.SubscriptionRepositoryImpl
+import com.TellMeUp.tellmeapp.domain.repository.AiChatRepository
+import com.TellMeUp.tellmeapp.domain.repository.ClaudeRepository
 import com.TellMeUp.tellmeapp.domain.repository.SpeechRepository
 import com.TellMeUp.tellmeapp.domain.repository.SubscriptionRepository
 import dagger.Binds
@@ -32,4 +36,16 @@ abstract class RepositoryModule {
     abstract fun bindSubscriptionRepository(
         impl: SubscriptionRepositoryImpl
     ): SubscriptionRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAiChatRepository(
+        impl: AiChatRepositoryImpl
+    ): AiChatRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindClaudeRepository(
+        impl: ClaudeRepositoryImpl
+    ): ClaudeRepository
 }
