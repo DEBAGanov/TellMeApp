@@ -24,8 +24,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -63,6 +61,7 @@ import com.TellMeUp.tellmeapp.ui.theme.TextTertiary
 
 @Composable
 fun MainScreen(
+    onNavigateToProvider: (AiProvider) -> Unit = {},
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -167,17 +166,6 @@ fun MainScreen(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Step 2: API key reminder
-            StepCard(
-                step = "2",
-                title = "API-ключ",
-                description = "Укажите ключ во вкладке\n«Настройки» для распознавания",
-                buttonText = null,
-                onClick = null
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
             // AI mode toggle
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -227,7 +215,10 @@ fun MainScreen(
                     AiProvider.entries.forEach { provider ->
                         val isSelected = uiState.aiProvider == provider
                         Button(
-                            onClick = { viewModel.selectProvider(provider) },
+                            onClick = {
+                                viewModel.selectProvider(provider)
+                                onNavigateToProvider(provider)
+                            },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isSelected) AccentBlue else CardDark
                             ),
@@ -243,56 +234,6 @@ fun MainScreen(
                                 fontSize = 13.sp
                             )
                         }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Manual record button
-            Button(
-                onClick = {
-                    when (uiState.voiceState) {
-                        VoiceState.IDLE -> {
-                            Toast.makeText(context, "Начинаю запись...", Toast.LENGTH_SHORT).show()
-                            viewModel.startRecordingManually()
-                        }
-                        VoiceState.RECORDING -> {
-                            Toast.makeText(context, "Останавливаю запись...", Toast.LENGTH_SHORT).show()
-                            viewModel.stopRecordingManually()
-                        }
-                        VoiceState.PROCESSING -> {}
-                        VoiceState.AI_PROCESSING -> {}
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = when (uiState.voiceState) {
-                        VoiceState.RECORDING -> RecordingRed
-                        VoiceState.PROCESSING -> TextTertiary
-                        VoiceState.AI_PROCESSING -> TextTertiary
-                        else -> AccentBlue
-                    }
-                ),
-                shape = CircleShape,
-                modifier = Modifier.size(140.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = when (uiState.voiceState) {
-                            VoiceState.RECORDING -> "● REC"
-                            VoiceState.PROCESSING -> "..."
-                            VoiceState.AI_PROCESSING -> "AI..."
-                            else -> "ЗАПИСЬ"
-                        },
-                        color = TextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (uiState.voiceState == VoiceState.IDLE) {
-                        Text("ручной", color = TextPrimary, fontSize = 11.sp)
-                    }
-                    if (uiState.voiceState == VoiceState.RECORDING) {
-                        Text("стоп", color = TextPrimary, fontSize = 11.sp)
                     }
                 }
             }

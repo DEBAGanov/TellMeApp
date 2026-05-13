@@ -276,7 +276,11 @@ class VoiceForegroundService : Service() {
                 val aiEnabled = preferencesStore.aiEnabled.first()
 
                 if (aiEnabled) {
-                    val aiText = processWithAi(result.text)
+                    val providerKey = preferencesStore.aiProvider.first()
+                    val provider = AiProvider.fromKey(providerKey)
+                    val prompt = getPromptForProvider(provider)
+                    val textForAi = if (prompt.isNotBlank()) "$prompt\n\n${result.text}" else result.text
+                    val aiText = processWithAi(textForAi)
                     val textToInsert = aiText ?: result.text
                     insertRecognizedText(textToInsert)
                     _lastRecognizedText.value = "AI: $textToInsert"
@@ -288,6 +292,13 @@ class VoiceForegroundService : Service() {
 
             _voiceState.value = VoiceState.IDLE
             audioFile.delete()
+        }
+    }
+
+    private suspend fun getPromptForProvider(provider: AiProvider): String {
+        return when (provider) {
+            AiProvider.ZAI -> preferencesStore.zaiPrompt.first()
+            AiProvider.CLAUDE -> preferencesStore.claudePrompt.first()
         }
     }
 

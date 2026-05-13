@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-13] - Этап 10: Промпты для AI провайдеров
+### Добавлено
+- `AiProviderScreen` — экран настроек AI провайдера с полем ввода промпта
+- `AiProviderViewModel` — ViewModel для управления промптом провайдера
+- `PreferencesStore`: добавлены `zaiPrompt`, `claudePrompt` и соответствующие save-методы
+- Навигация: маршрут `ai_provider/{providerKey}` для перехода к экрану провайдера
+### Изменено
+- `MainScreen` — кнопки провайдеров теперь навигируют на экран настроек провайдера
+- `AppNavigation` — добавлен маршрут к AiProviderScreen, bottom bar скрывается на экране провайдера
+- `VoiceForegroundService` — при AI обработке читает промпт провайдера из DataStore, склеивает с распознанным текстом (`"промпт\n\nтекст"`)
+- `tasktracker.md` — добавлен Этап 10
+
+---
+
 ## [2026-05-12] - Этап 9: Поддержка нескольких AI провайдеров (z.ai + Claude)
 ### Добавлено
 - `ClaudeMessageDto` — DTO для Claude Messages API (request/response с content blocks)

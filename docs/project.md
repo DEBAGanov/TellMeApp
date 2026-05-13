@@ -236,7 +236,7 @@ app/src/main/java/com/TellMeUp/tellmeapp/
 │   │       ├── ChatCompletionDto.kt
 │   │       └── ClaudeMessageDto.kt
 │   ├── local/
-│   │   └── PreferencesStore.kt     # DataStore (keys, settings, provider)
+│   │   └── PreferencesStore.kt     # DataStore (keys, settings, provider, prompts)
 │   └── repository/
 │       ├── SpeechRepositoryImpl.kt
 │       ├── SubscriptionRepositoryImpl.kt
@@ -288,6 +288,9 @@ app/src/main/java/com/TellMeUp/tellmeapp/
 │       │   ├── AssistantActivity.kt
 │       │   ├── AssistantOverlay.kt
 │       │   └── AssistantViewModel.kt
+│       ├── aiprovider/
+│       │   ├── AiProviderScreen.kt   # Provider prompt settings
+│       │   └── AiProviderViewModel.kt
 │       └── logs/
 │           └── LogsScreen.kt       # In-app log viewer
 └── util/
@@ -303,7 +306,7 @@ app/src/main/java/com/TellMeUp/tellmeapp/
 - Кнопка СТАРТ/СТОП СЕРВИС
 - Инструкция: кнопка питания → API ключ → AI ассистент
 - Переключатель AI ассистент (вкл/выкл)
-- Селектор провайдера (z.ai / Claude) — виден при включённом AI
+- Селектор провайдера (z.ai / Claude) — навигация на экран настроек провайдера
 - Кнопка ручной записи (круглая)
 - Результат распознавания
 
@@ -321,7 +324,14 @@ app/src/main/java/com/TellMeUp/tellmeapp/
 - Переключатели: виброотклик, визуальное уведомление
 - Тёмная тема
 
-### 6.4. Ассистент (AssistantOverlay)
+### 6.4. Экран настроек провайдера (AiProvider)
+
+- Заголовок с названием провайдера (z.ai / Claude)
+- Многострочное поле ввода промпта
+- Кнопка "Сохранить" и "Очистить"
+- Подсказка: промпт добавляется перед распознанным текстом
+
+### 6.5. Ассистент (AssistantOverlay)
 
 - Прозрачный оверлей при запуске через Digital Assistant
 - Автозапись при открытии
@@ -350,6 +360,9 @@ app/src/main/java/com/TellMeUp/tellmeapp/
 - **z.ai** (GLM Coding Plan) — OpenAI Chat Completions-compatible, Bearer auth
 - **Claude** (Anthropic) — Messages API, `x-api-key` + `anthropic-version` headers
 - Провайдер выбирается на главном экране, сохраняется в DataStore
+- Каждый провайдер имеет отдельный промпт (сохраняется в DataStore)
+- Промпт склеивается с распознанным текстом: `"промпт\n\nраспознанный_текст"`
+- Если промпт пуст — отправляется только распознанный текст
 - Ответ AI вставляется вместо оригинального текста
 - При ошибке AI — fallback на оригинальный распознанный текст
 
@@ -370,6 +383,7 @@ app/src/main/java/com/TellMeUp/tellmeapp/
 ### Этап 7: Исправление триггера Volume Up — завершён
 ### Этап 8: AI ассистент (z.ai) — завершён
 ### Этап 9: Поддержка нескольких AI провайдеров (z.ai + Claude) — завершён
+### Этап 10: Промпты для AI провайдеров — завершён
 
 ---
 

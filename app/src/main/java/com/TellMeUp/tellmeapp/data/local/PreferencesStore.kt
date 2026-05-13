@@ -38,6 +38,8 @@ class PreferencesStore @Inject constructor(
         private val KEY_AI_API_KEY = stringPreferencesKey("ai_api_key")
         private val KEY_AI_PROVIDER = stringPreferencesKey("ai_provider")
         private val KEY_CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
+        private val KEY_ZAI_PROMPT = stringPreferencesKey("zai_prompt")
+        private val KEY_CLAUDE_PROMPT = stringPreferencesKey("claude_prompt")
     }
 
     val subscription: Flow<Subscription?> = context.dataStore.data.map { prefs ->
@@ -118,6 +120,26 @@ class PreferencesStore @Inject constructor(
     suspend fun saveClaudeApiKey(key: String) {
         context.dataStore.edit { prefs ->
             prefs[KEY_CLAUDE_API_KEY] = key
+        }
+    }
+
+    val zaiPrompt: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_ZAI_PROMPT] ?: ""
+    }
+
+    suspend fun saveZaiPrompt(prompt: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_ZAI_PROMPT] = prompt
+        }
+    }
+
+    val claudePrompt: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[KEY_CLAUDE_PROMPT] ?: ""
+    }
+
+    suspend fun saveClaudePrompt(prompt: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CLAUDE_PROMPT] = prompt
         }
     }
 }

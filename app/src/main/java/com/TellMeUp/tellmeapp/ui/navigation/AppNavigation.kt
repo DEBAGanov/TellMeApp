@@ -32,6 +32,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.TellMeUp.tellmeapp.ui.screen.aiprovider.AiProviderScreen
 import com.TellMeUp.tellmeapp.ui.screen.logs.LogsScreen
 import com.TellMeUp.tellmeapp.ui.screen.main.MainScreen
 import com.TellMeUp.tellmeapp.ui.screen.settings.SettingsScreen
@@ -57,45 +60,50 @@ fun AppNavigation() {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            NavigationBar(
-                containerColor = SurfaceDark,
-                contentColor = TextPrimary
-            ) {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentRoute = navBackStackEntry?.destination?.route
+            val showBottomBar = currentRoute != "ai_provider/{providerKey}"
 
-                screens.forEach { screen ->
-                    NavigationBarItem(
-                        icon = {
-                            Icon(
-                                screen.icon,
-                                contentDescription = screen.label,
-                                tint = if (currentDestination?.hierarchy?.any { it.route == screen.route } == true)
-                                    AccentBlue else TextTertiary
-                            )
-                        },
-                        label = {
-                            Text(
-                                screen.label,
-                                fontSize = 11.sp,
-                                color = if (currentDestination?.hierarchy?.any { it.route == screen.route } == true)
-                                    AccentBlue else TextTertiary
-                            )
-                        },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar(
+                    containerColor = SurfaceDark,
+                    contentColor = TextPrimary
+                ) {
+                    val currentDestination = navBackStackEntry?.destination
+
+                    screens.forEach { screen ->
+                        NavigationBarItem(
+                            icon = {
+                                Icon(
+                                    screen.icon,
+                                    contentDescription = screen.label,
+                                    tint = if (currentDestination?.hierarchy?.any { it.route == screen.route } == true)
+                                        AccentBlue else TextTertiary
+                                )
+                            },
+                            label = {
+                                Text(
+                                    screen.label,
+                                    fontSize = 11.sp,
+                                    color = if (currentDestination?.hierarchy?.any { it.route == screen.route } == true)
+                                        AccentBlue else TextTertiary
+                                )
+                            },
+                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = AccentBlue.copy(alpha = 0.15f)
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = AccentBlue.copy(alpha = 0.15f)
+                            )
                         )
-                    )
+                    }
                 }
             }
         }
@@ -109,7 +117,11 @@ fun AppNavigation() {
                 .padding(innerPadding)
         ) {
             composable(Screen.Main.route) {
-                MainScreen()
+                MainScreen(
+                    onNavigateToProvider = { provider ->
+                        navController.navigate("ai_provider/${provider.key}")
+                    }
+                )
             }
             composable(Screen.Subscription.route) {
                 SubscriptionScreen()
@@ -119,6 +131,14 @@ fun AppNavigation() {
             }
             composable(Screen.Settings.route) {
                 SettingsScreen()
+            }
+            composable(
+                route = "ai_provider/{providerKey}",
+                arguments = listOf(navArgument("providerKey") { type = NavType.StringType })
+            ) {
+                AiProviderScreen(
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }
